@@ -54,8 +54,19 @@ EOF
 if ! command -v cargo &> /dev/null; then
     echo "Installing Rust..."
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source ~/.cargo/env
+    
+    # Source Rust environment
+    if [ -f ~/.cargo/env ]; then
+        source ~/.cargo/env
+    fi
+    
+    # Add to bashrc for future sessions
     echo 'source ~/.cargo/env' >> ~/.bashrc
+    
+    # Verify cargo is available
+    if ! command -v cargo &> /dev/null; then
+        export PATH="$HOME/.cargo/bin:$PATH"
+    fi
 fi
 
 # Download source code directly without git
@@ -84,8 +95,22 @@ echo 'export DATABASE_URL="postgresql://rmm_user:secure_rmm_password_123@localho
 
 # Build the server
 echo "Building RMM server..."
-source ~/.cargo/env
-cargo build --release --bin simple-rmm-server
+
+# Ensure Rust environment is loaded
+if [ -f ~/.cargo/env ]; then
+    source ~/.cargo/env
+else
+    export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
+# Verify cargo is available before building
+if command -v cargo &> /dev/null; then
+    cargo build --release --bin simple-rmm-server
+else
+    echo "Error: Cargo not found. Please check Rust installation."
+    echo "Manual fix: export PATH=\"\$HOME/.cargo/bin:\$PATH\""
+    exit 1
+fi
 
 # Get public IP
 PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 2>/dev/null || echo "localhost")
