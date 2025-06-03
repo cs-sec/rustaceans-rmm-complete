@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rustaceans Security RMM Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23dc2626'><path d='M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'/></svg>">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">
+                    <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                    <h1>Rustaceans Security RMM</h1>
+                </div>
+                <div class="header-status">
+                    <div class="status-indicator" id="connection-status">
+                        <div class="status-dot"></div>
+                        <span id="status-text">Connecting...</span>
+                    </div>
+                    <div class="last-update">
+                        Last update: <span id="last-update-time">Never</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main">
+        <div class="container">
+            <!-- Dashboard Summary -->
+            <section class="dashboard-summary">
+                <div class="summary-cards">
+                    <div class="summary-card critical clickable" data-navigate="vulnerabilities">
+                        <div class="card-header">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"/>
+                                <line x1="12" y1="8" x2="12" y2="12"/>
+                                <line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            <h3>Critical</h3>
+                        </div>
+                        <div class="card-value" id="critical-count">0</div>
+                        <div class="card-label">Vulnerabilities</div>
+                    </div>
+
+                    <div class="summary-card high clickable" data-navigate="patches">
+                        <div class="card-header">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                                <polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
+                                <line x1="12" y1="22.08" x2="12" y2="12"/>
+                            </svg>
+                            <h3>Patches</h3>
+                        </div>
+                        <div class="card-value" id="patches-count">0</div>
+                        <div class="card-label">Available</div>
+                    </div>
+
+                    <div class="summary-card medium clickable" data-navigate="misconfigs">
+                        <div class="card-header">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <h3>Misconfigs</h3>
+                        </div>
+                        <div class="card-value" id="misconfigs-count">0</div>
+                        <div class="card-label">Detected</div>
+                    </div>
+
+                    <div class="summary-card warning clickable" data-navigate="pii">
+                        <div class="card-header">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 12l2 2 4-4"/>
+                                <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/>
+                                <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"/>
+                            </svg>
+                            <h3>PII</h3>
+                        </div>
+                        <div class="card-value" id="pii-count">0</div>
+                        <div class="card-label">Exposures</div>
+                    </div>
+
+                    <div class="summary-card info clickable" data-navigate="clients">
+                        <div class="card-header">
+                            <svg class="card-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <h3>Clients</h3>
+                        </div>
+                        <div class="card-value" id="clients-count">0</div>
+                        <div class="card-label">Connected</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Navigation Tabs -->
+            <section class="navigation-tabs">
+                <div class="tabs">
+                    <button class="tab active" data-tab="dashboard">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"/>
+                            <rect x="14" y="3" width="7" height="7"/>
+                            <rect x="14" y="14" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/>
+                        </svg>
+                        Dashboard
+                    </button>
+                    <button class="tab" data-tab="findings">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        Security Findings
+                    </button>
+                    <button class="tab" data-tab="clients">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                        Clients
+                    </button>
+                    <button class="tab" data-tab="vulnerabilities">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                        Vulnerabilities
+                    </button>
+                    <button class="tab" data-tab="patches">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                            <polyline points="3.27,6.96 12,12.01 20.73,6.96"/>
+                            <line x1="12" y1="22.08" x2="12" y2="12"/>
+                        </svg>
+                        Patch Management
+                    </button>
+                    <button class="tab" data-tab="misconfigs">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                            <line x1="12" y1="9" x2="12" y2="13"/>
+                            <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        </svg>
+                        Misconfigurations
+                    </button>
+                    <button class="tab" data-tab="pii">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M9 12l2 2 4-4"/>
+                            <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/>
+                            <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"/>
+                            <path d="M9 21c0-1-1-3-3-3s-3 2-3 3 1 3 3 3 3-2 3-3"/>
+                            <path d="M15 21c0-1 1-3 3-3s3 2 3 3-1 3-3 3-3-2-3-3"/>
+                        </svg>
+                        PII Exposure
+                    </button>
+                    <button class="tab" data-tab="system">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                        System Info
+                    </button>
+                </div>
+            </section>
+
+            <!-- Tab Content -->
+            <section class="tab-content">
+                <!-- Dashboard Tab -->
+                <div class="tab-panel active" id="dashboard-panel">
+                    <div class="panel-grid">
+                        <div class="panel-card">
+                            <h3>Recent Security Findings</h3>
+                            <div id="recent-findings">
+                                <div class="empty-state">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M9 12l2 2 4-4"/>
+                                        <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"/>
+                                        <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"/>
+                                        <path d="M9 21c0-1-1-3-3-3s-3 2-3 3 1 3 3 3 3-2 3-3"/>
+                                        <path d="M15 21c0-1 1-3 3-3s3 2 3 3-1 3-3 3-3-2-3-3"/>
+                                    </svg>
+                                    <p>No security findings yet</p>
+                                    <small>Scan results will appear here when available</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel-card">
+                            <h3>Vulnerability & Patch Management</h3>
+                            <div id="vulnerability-report">
+                                <div class="empty-state">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                                    </svg>
+                                    <p>Loading vulnerability data...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="panel-card">
+                            <h3>System Health</h3>
+                            <div id="system-health">
+                                <div class="health-metrics">
+                                    <div class="metric">
+                                        <span class="metric-label">CPU Usage</span>
+                                        <span class="metric-value" id="cpu-usage">--</span>
+                                    </div>
+                                    <div class="metric">
+                                        <span class="metric-label">Memory Usage</span>
+                                        <span class="metric-value" id="memory-usage">--</span>
+                                    </div>
+                                    <div class="metric">
+                                        <span class="metric-label">Disk Usage</span>
+                                        <span class="metric-value" id="disk-usage">--</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Findings Tab -->
+                <div class="tab-panel" id="findings-panel">
+                    <div class="panel-header">
+                        <h3>Security Findings</h3>
+                        <div class="panel-controls">
+                            <select id="severity-filter" class="filter-select">
+                                <option value="">All Severities</option>
+                                <option value="Critical">Critical</option>
+                                <option value="High">High</option>
+                                <option value="Medium">Medium</option>
+                                <option value="Low">Low</option>
+                                <option value="Info">Info</option>
+                            </select>
+                            <select id="category-filter" class="filter-select">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="findings-list">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 12l2 2 4-4"/>
+                                <circle cx="12" cy="12" r="10"/>
+                            </svg>
+                            <p>No security findings</p>
+                            <small>Security scan results will be displayed here</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clients Tab -->
+                <div class="tab-panel" id="clients-panel">
+                    <div class="panel-header">
+                        <h3>Connected Clients</h3>
+                    </div>
+                    <div id="clients-list">
+                        <div class="empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                            <p>No clients connected</p>
+                            <small>Client information will appear when clients connect</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vulnerabilities Tab -->
+                <div class="tab-panel" id="vulnerabilities-panel">
+                    <div class="panel-header">
+                        <h3>Vulnerability Database</h3>
+                    </div>
+                    <div id="vulnerabilities-list">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Loading vulnerability data...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Patch Management Tab -->
+                <div class="tab-panel" id="patches-panel">
+                    <div class="panel-header">
+                        <h3>Patch Management</h3>
+                    </div>
+                    <div id="patches-list">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Loading patch recommendations...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Misconfigurations Tab -->
+                <div class="tab-panel" id="misconfigs-panel">
+                    <div class="panel-header">
+                        <h3>System Misconfigurations</h3>
+                    </div>
+                    <div id="misconfigs-list">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Loading misconfiguration data...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- PII Exposure Tab -->
+                <div class="tab-panel" id="pii-panel">
+                    <div class="panel-header">
+                        <h3>PII Exposure Detection</h3>
+                    </div>
+                    <div id="pii-list">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Loading PII exposure data...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Clients Tab -->
+                <div class="tab-panel" id="clients-panel">
+                    <div class="panel-header">
+                        <h3>Connected Clients</h3>
+                    </div>
+                    <div id="clients-list">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Loading client information...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Info Tab -->
+                <div class="tab-panel" id="system-panel">
+                    <div class="panel-header">
+                        <h3>System Information</h3>
+                    </div>
+                    <div id="system-info">
+                        <div class="loading-state">
+                            <div class="spinner"></div>
+                            <p>Loading system information...</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Client Details Modal -->
+    <div id="client-details-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <div id="client-details-content">
+                <!-- Client details will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <p>&copy; 2024 Rustaceans Security RMM. Built with security first.</p>
+                <div class="footer-links">
+                    <a href="https://github.com/rust-lang/rust" target="_blank">Powered by Rust</a>
+                    <span>•</span>
+                    <span>Version 1.0.0</span>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

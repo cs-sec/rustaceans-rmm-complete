@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  rmm-server:
+    build:
+      context: ../..
+      dockerfile: deployment/server/Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://rmm_user:rmm_password@postgres:5432/rmm_db
+      - RUST_LOG=info
+      - BIND_ADDRESS=0.0.0.0:5000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./certs:/app/certs:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - rmm-network
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=rmm_db
+      - POSTGRES_USER=rmm_user
+      - POSTGRES_PASSWORD=rmm_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rmm_user -d rmm_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - rmm-network
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./logs:/var/log/nginx
+    depends_on:
+      - rmm-server
+    restart: unless-stopped
+    networks:
+      - rmm-network
+
+volumes:
+  postgres_data:
+
+networks:
+  rmm-network:
+    driver: bridge
