@@ -131,6 +131,42 @@ async fn get_scan_results(
     }
 }
 
+// Agent registration endpoints (no auth required for agent communication)
+async fn register_agent(
+    agent_data: web::Json<serde_json::Value>,
+) -> ActixResult<HttpResponse> {
+    println!("Agent registration received: {}", serde_json::to_string_pretty(&agent_data).unwrap_or_default());
+    
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+        "message": "Agent registered successfully"
+    })))
+}
+
+async fn agent_heartbeat(
+    path: web::Path<String>,
+    heartbeat_data: web::Json<serde_json::Value>,
+) -> ActixResult<HttpResponse> {
+    let agent_id = path.into_inner();
+    println!("Heartbeat from agent {}: {}", agent_id, serde_json::to_string_pretty(&heartbeat_data).unwrap_or_default());
+    
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+        "message": "Heartbeat received"
+    })))
+}
+
+async fn receive_scan_results(
+    scan_data: web::Json<serde_json::Value>,
+) -> ActixResult<HttpResponse> {
+    println!("Scan results received: {}", serde_json::to_string_pretty(&scan_data).unwrap_or_default());
+    
+    Ok(HttpResponse::Ok().json(serde_json::json!({
+        "success": true,
+        "message": "Scan results received"
+    })))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -156,8 +192,11 @@ async fn main() -> std::io::Result<()> {
                 web::scope("/api")
                     .route("/status", web::get().to(auth::check_auth))
                     .route("/clients", web::get().to(get_clients))
+                    .route("/clients", web::post().to(register_agent))
+                    .route("/clients/{agent_id}/heartbeat", web::post().to(agent_heartbeat))
                     .route("/vulnerabilities", web::get().to(get_vulnerabilities))
                     .route("/scan-results", web::get().to(get_scan_results))
+                    .route("/scan-results", web::post().to(receive_scan_results))
                     .service(
                         web::scope("/auth")
                             .route("/login", web::post().to(auth::login))
