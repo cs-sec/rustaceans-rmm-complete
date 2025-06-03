@@ -1,9 +1,14 @@
 use actix_web::{web, App, HttpResponse, HttpServer, Result as ActixResult, middleware::Logger, HttpRequest};
 use serde_json;
 use chrono::Utc;
+use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 
 mod auth;
 use auth::{SessionStore, require_auth};
+
+// Storage for real agent data
+type AgentStore = Arc<Mutex<HashMap<String, serde_json::Value>>>;
 
 async fn health() -> ActixResult<HttpResponse> {
     Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -51,21 +56,12 @@ async fn static_js() -> ActixResult<HttpResponse> {
 async fn get_clients(
     req: HttpRequest,
     sessions: web::Data<SessionStore>,
+    agents: web::Data<AgentStore>,
 ) -> ActixResult<HttpResponse> {
     match require_auth(&req, &sessions) {
         Ok(_session) => {
-            let clients = vec![
-                serde_json::json!({
-                    "id": "550e8400-e29b-41d4-a716-446655440000",
-                    "hostname": "WINDOWS-AGENT-01",
-                    "ip_address": "192.168.1.100",
-                    "operating_system": "Windows",
-                    "os_version": "Windows 11 Pro 22H2",
-                    "last_seen": Utc::now().to_rfc3339(),
-                    "agent_version": "1.0.0",
-                    "status": "online"
-                })
-            ];
+            let agents_guard = agents.lock().unwrap();
+            let clients: Vec<serde_json::Value> = agents_guard.values().cloned().collect();
             Ok(HttpResponse::Ok().json(clients))
         },
         Err(response) => Ok(response),
@@ -134,8 +130,21 @@ async fn get_scan_results(
 // Agent registration endpoints (no auth required for agent communication)
 async fn register_agent(
     agent_data: web::Json<serde_json::Value>,
+    agents: web::Data<AgentStore>,
 ) -> ActixResult<HttpResponse> {
     println!("Agent registration received: {}", serde_json::to_string_pretty(&agent_data).unwrap_or_default());
+    
+    if let Some(agent_id) = agent_data.get("agent_id").and_then(|v| v.as_str()) {
+        let mut agents_guard = agents.lock().unwrap();
+        
+        // Create agent record
+        let mut agent_record = agent_data.clone();
+        agent_record["last_seen"] = serde_json::Value::String(Utc::now().to_rfc3339());
+        agent_record["status"] = serde_json::Value::String("online".to_string());
+        
+        agents_guard.insert(agent_id.to_string(), agent_record);
+        println!("Agent {} registered and stored", agent_id);
+    }
     
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "success": true,
@@ -146,9 +155,23 @@ async fn register_agent(
 async fn agent_heartbeat(
     path: web::Path<String>,
     heartbeat_data: web::Json<serde_json::Value>,
+    agents: web::Data<AgentStore>,
 ) -> ActixResult<HttpResponse> {
     let agent_id = path.into_inner();
     println!("Heartbeat from agent {}: {}", agent_id, serde_json::to_string_pretty(&heartbeat_data).unwrap_or_default());
+    
+    // Update agent data with heartbeat
+    if let mut agents_guard = agents.lock().unwrap() {
+        if let Some(agent_record) = agents_guard.get_mut(&agent_id) {
+            agent_record["last_seen"] = serde_json::Value::String(Utc::now().to_rfc3339());
+            agent_record["status"] = serde_json::Value::String("online".to_string());
+            
+            // Update system info if provided
+            if let Some(system_info) = heartbeat_data.get("system_info") {
+                agent_record["system_info"] = system_info.clone();
+            }
+        }
+    }
     
     Ok(HttpResponse::Ok().json(serde_json::json!({
         "success": true,
@@ -172,6 +195,7 @@ async fn main() -> std::io::Result<()> {
     env_logger::init();
     
     let (users, sessions) = auth::init_auth_stores();
+    let agents: AgentStore = Arc::new(Mutex::new(HashMap::new()));
     
     println!("Starting Rustaceans Security RMM Server (Full Console)");
     println!("Server will be available at: http://0.0.0.0:5000");
@@ -181,6 +205,7 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(web::Data::new(users.clone()))
             .app_data(web::Data::new(sessions.clone()))
+            .app_data(web::Data::new(agents.clone()))
             .wrap(Logger::default())
             .route("/", web::get().to(dashboard))
             .route("/login", web::get().to(login_page))
