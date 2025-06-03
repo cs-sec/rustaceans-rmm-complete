@@ -151,17 +151,19 @@ async fn main() -> std::io::Result<()> {
             .route("/health", web::get().to(health))
             .route("/static/style.css", web::get().to(static_css))
             .route("/static/app.js", web::get().to(static_js))
+            .route("/logout", web::post().to(auth::logout))
             .service(
-                web::scope("/api/auth")
-                    .route("/login", web::post().to(auth::login))
-                    .route("/logout", web::post().to(auth::logout))
-                    .route("/check", web::get().to(auth::check_auth))
-            )
-            .service(
-                web::scope("/api/v1")
+                web::scope("/api")
+                    .route("/status", web::get().to(auth::check_auth))
                     .route("/clients", web::get().to(get_clients))
                     .route("/vulnerabilities", web::get().to(get_vulnerabilities))
                     .route("/scan-results", web::get().to(get_scan_results))
+                    .service(
+                        web::scope("/auth")
+                            .route("/login", web::post().to(auth::login))
+                            .route("/logout", web::post().to(auth::logout))
+                            .route("/check", web::get().to(auth::check_auth))
+                    )
             )
     })
     .bind("0.0.0.0:5000")?

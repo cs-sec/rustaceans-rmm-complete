@@ -1,81 +1,82 @@
-/**
- * Rustaceans Security RMM Dashboard
- * Frontend JavaScript for the security monitoring dashboard
- */
+// Simple RMM Dashboard JavaScript
 
 class RMMDashboard {
     constructor() {
         this.currentTab = 'overview';
-        this.init();
+        this.updateInterval = null;
     }
 
     async init() {
-        const isAuthenticated = await this.checkAuthentication();
-        if (!isAuthenticated) return;
+        console.log('Initializing RMM Dashboard...');
         
+        // Check authentication
+        const isAuthenticated = await this.checkAuthentication();
+        if (!isAuthenticated) {
+            window.location.href = '/login';
+            return;
+        }
+
         this.setupEventListeners();
         this.setupPeriodicUpdates();
-        await this.loadAllData();
+        this.loadTabData('overview');
     }
 
     async checkAuthentication() {
         try {
-            const response = await fetch('/api/auth/check');
-            const result = await response.json();
-            if (!result.authenticated) {
-                window.location.href = '/login';
-                return false;
-            }
-            const usernameElement = document.getElementById('username');
-            if (usernameElement) {
-                usernameElement.textContent = result.user.username;
-            }
-            return true;
+            const response = await fetch('/api/status', {
+                credentials: 'include'
+            });
+            return response.ok;
         } catch (error) {
-            console.error('Auth check failed:', error);
-            window.location.href = '/login';
+            console.error('Authentication check failed:', error);
             return false;
         }
     }
 
     setupEventListeners() {
+        // Navigation
         document.querySelectorAll('.nav-item').forEach(item => {
             item.addEventListener('click', () => {
                 const tab = item.dataset.tab;
                 this.switchTab(tab);
             });
         });
+
+        // Make sure logout function is available globally
+        window.logout = () => this.logout();
+        window.scanForVulnerabilities = () => this.scanForVulnerabilities();
+        window.refreshVulnerabilities = () => this.refreshVulnerabilities();
     }
 
     setupPeriodicUpdates() {
-        setInterval(() => {
-            this.loadAllData();
+        // Update dashboard every 30 seconds
+        this.updateInterval = setInterval(() => {
+            this.loadTabData(this.currentTab);
         }, 30000);
     }
 
     switchTab(tabName) {
+        // Update navigation
         document.querySelectorAll('.nav-item').forEach(item => {
             item.classList.remove('active');
         });
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+        // Update content
         document.querySelectorAll('.tab-content').forEach(content => {
             content.classList.remove('active');
         });
-
-        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
         document.getElementById(tabName).classList.add('active');
-        this.currentTab = tabName;
 
+        this.currentTab = tabName;
         this.loadTabData(tabName);
     }
 
-    async loadAllData() {
-        await this.loadClients();
-        await this.loadVulnerabilities();
-        await this.loadScanResults();
-    }
-
     async loadTabData(tabName) {
-        switch(tabName) {
+        switch (tabName) {
+            case 'overview':
+                // Overview data is static for demo
+                break;
             case 'vulnerabilities':
                 await this.loadVulnerabilities();
                 break;
@@ -85,174 +86,241 @@ class RMMDashboard {
             case 'scans':
                 await this.loadScanResults();
                 break;
+            default:
+                // Other tabs use static content
+                break;
         }
     }
 
     async loadClients() {
         try {
-            const response = await fetch('/api/v1/clients');
-            const clients = await response.json();
-            this.displayClients(clients);
-            document.getElementById('online-count').textContent = clients.length;
+            const response = await fetch('/api/clients', {
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const clients = await response.json();
+                this.displayClients(clients);
+            } else {
+                this.showEmptyState('clients-grid', 'No clients connected');
+            }
         } catch (error) {
             console.error('Failed to load clients:', error);
+            this.showEmptyState('clients-grid', 'Unable to load client data');
         }
     }
 
     async loadVulnerabilities() {
         try {
-            const response = await fetch('/api/v1/vulnerabilities');
-            const vulnerabilities = await response.json();
-            this.displayVulnerabilities(vulnerabilities);
-            this.updateVulnerabilityCounts(vulnerabilities);
+            const response = await fetch('/api/vulnerabilities', {
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const vulnerabilities = await response.json();
+                this.displayVulnerabilities(vulnerabilities);
+            } else {
+                this.showEmptyState('vulnerability-list', 'No vulnerabilities found');
+            }
         } catch (error) {
             console.error('Failed to load vulnerabilities:', error);
+            this.showEmptyState('vulnerability-list', 'Unable to load vulnerability data');
         }
     }
 
     async loadScanResults() {
         try {
-            const response = await fetch('/api/v1/scan-results');
-            const scanResults = await response.json();
-            this.displayScanResults(scanResults);
+            const response = await fetch('/api/scan-results', {
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                const scanResults = await response.json();
+                this.displayScanResults(scanResults);
+            } else {
+                this.showEmptyState('scan-results', 'No scan results available');
+            }
         } catch (error) {
             console.error('Failed to load scan results:', error);
+            this.showEmptyState('scan-results', 'Unable to load scan data');
         }
     }
 
     displayClients(clients) {
         const container = document.getElementById('clients-grid');
-        if (!clients.length) {
-            container.innerHTML = '<div class="no-data">No clients connected yet</div>';
+        if (!clients || clients.length === 0) {
+            this.showEmptyState('clients-grid', 'No clients connected');
             return;
         }
 
         container.innerHTML = clients.map(client => `
             <div class="client-card">
-                <h4>${client.hostname}</h4>
-                <p><strong>OS:</strong> ${client.os_version}</p>
-                <p><strong>IP:</strong> ${client.ip_address}</p>
-                <p><strong>Status:</strong> <span class="status ${client.status}">${client.status}</span></p>
-                <p><strong>Last Seen:</strong> ${new Date(client.last_seen).toLocaleString()}</p>
-                <button class="btn primary" onclick="dashboard.viewClientDetails('${client.id}')">View Details</button>
+                <h4>${client.hostname || 'Unknown Host'}</h4>
+                <p><strong>OS:</strong> ${client.os || 'Unknown'}</p>
+                <p><strong>IP:</strong> ${client.ip || 'N/A'}</p>
+                <p><strong>Last Seen:</strong> ${this.formatTimestamp(client.last_seen)}</p>
+                <p><strong>Status:</strong> 
+                    <span class="status ${client.online ? 'online' : 'offline'}">
+                        ${client.online ? 'Online' : 'Offline'}
+                    </span>
+                </p>
             </div>
         `).join('');
     }
 
     displayVulnerabilities(vulnerabilities) {
         const container = document.getElementById('vulnerability-list');
-        if (!vulnerabilities.length) {
-            container.innerHTML = '<div class="no-data">No vulnerabilities detected</div>';
+        if (!vulnerabilities || vulnerabilities.length === 0) {
+            this.showEmptyState('vulnerability-list', 'No vulnerabilities detected');
             return;
         }
 
         container.innerHTML = vulnerabilities.map(vuln => `
             <div class="vuln-item">
                 <div class="vuln-header">
-                    <h4>${vuln.title}</h4>
-                    <span class="severity ${vuln.severity.toLowerCase()}">${vuln.severity}</span>
+                    <h4>${vuln.title || vuln.cve_id || 'Unknown Vulnerability'}</h4>
+                    <span class="severity ${vuln.severity?.toLowerCase() || 'medium'}">${vuln.severity || 'Medium'}</span>
                 </div>
-                <p><strong>CVE ID:</strong> ${vuln.id}</p>
-                <p><strong>CVSS Score:</strong> ${vuln.cvss_score}</p>
-                <p class="vuln-description">${vuln.description}</p>
-                <div class="vuln-meta">
-                    <span><strong>Affected Systems:</strong> ${vuln.affected_systems.join(', ')}</span>
-                    <span><strong>Patch Available:</strong> ${vuln.patch_available ? 'Yes' : 'No'}</span>
-                </div>
-                <button class="btn primary">View Details</button>
-                ${vuln.patch_available ? '<button class="btn secondary">Deploy Patch</button>' : ''}
+                <p><strong>CVE ID:</strong> ${vuln.cve_id || 'N/A'}</p>
+                <p><strong>Description:</strong> ${vuln.description || 'No description available'}</p>
+                <p><strong>Affected System:</strong> ${vuln.hostname || 'Unknown'}</p>
+                <p><strong>Discovered:</strong> ${this.formatTimestamp(vuln.detected_at)}</p>
             </div>
         `).join('');
     }
 
     displayScanResults(scanResults) {
         const container = document.getElementById('scan-results');
-        if (!scanResults.length) {
-            container.innerHTML = '<div class="no-data">No scan results available</div>';
+        if (!scanResults || scanResults.length === 0) {
+            this.showEmptyState('scan-results', 'No scan results available');
             return;
         }
 
         container.innerHTML = scanResults.map(scan => `
             <div class="scan-item">
-                <h4>Security Scan - ${scan.client_hostname}</h4>
-                <p><strong>Type:</strong> ${scan.scan_type}</p>
-                <p><strong>Status:</strong> ${scan.status}</p>
-                <p><strong>Completed:</strong> ${new Date(scan.timestamp).toLocaleString()}</p>
-                <div class="scan-stats">
-                    <span class="stat critical">Critical: ${scan.critical_count}</span>
-                    <span class="stat high">High: ${scan.high_count}</span>
-                    <span class="stat medium">Medium: ${scan.medium_count}</span>
-                </div>
-                <button class="btn primary">View Full Report</button>
+                <h4>Scan: ${scan.hostname || 'Unknown Host'}</h4>
+                <p><strong>Scan Type:</strong> ${scan.scan_type || 'General Security Scan'}</p>
+                <p><strong>Started:</strong> ${this.formatTimestamp(scan.started_at)}</p>
+                <p><strong>Completed:</strong> ${this.formatTimestamp(scan.completed_at)}</p>
+                <p><strong>Status:</strong> 
+                    <span class="status ${scan.status?.toLowerCase() || 'unknown'}">${scan.status || 'Unknown'}</span>
+                </p>
+                <p><strong>Findings:</strong> ${scan.findings_count || 0} issues detected</p>
             </div>
         `).join('');
     }
 
-    updateVulnerabilityCounts(vulnerabilities) {
-        const critical = vulnerabilities.filter(v => v.severity === 'Critical').length;
-        const high = vulnerabilities.filter(v => v.severity === 'High').length;
-        const medium = vulnerabilities.filter(v => v.severity === 'Medium').length;
-
-        document.getElementById('critical-count').textContent = critical;
-        document.getElementById('high-count').textContent = high;
-        document.getElementById('medium-count').textContent = medium;
+    showEmptyState(containerId, message) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = `
+            <div class="empty-state">
+                <p>${message}</p>
+            </div>
+        `;
     }
 
     async scanForVulnerabilities() {
-        const button = event.target;
-        button.disabled = true;
-        button.textContent = '🔄 Scanning...';
-
-        setTimeout(() => {
-            button.disabled = false;
-            button.textContent = '🔍 Scan All Systems';
-            this.loadVulnerabilities();
-            this.showNotification('Vulnerability scan completed', 'success');
-        }, 3000);
+        this.showNotification('Starting vulnerability scan...', 'info');
+        try {
+            const response = await fetch('/api/scan/vulnerabilities', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                this.showNotification('Vulnerability scan initiated successfully', 'success');
+                // Refresh vulnerabilities after a delay
+                setTimeout(() => this.loadVulnerabilities(), 2000);
+            } else {
+                this.showNotification('Failed to start vulnerability scan', 'error');
+            }
+        } catch (error) {
+            console.error('Scan failed:', error);
+            this.showNotification('Error starting vulnerability scan', 'error');
+        }
     }
 
     async refreshVulnerabilities() {
+        this.showNotification('Refreshing vulnerability data...', 'info');
         await this.loadVulnerabilities();
-        this.showNotification('Vulnerabilities refreshed', 'info');
-    }
-
-    viewClientDetails(clientId) {
-        this.showNotification(`Viewing details for client ${clientId}`, 'info');
-    }
-
-    showNotification(message, type = 'info') {
-        console.log(`[${type.toUpperCase()}] ${message}`);
     }
 
     async logout() {
         try {
-            await fetch('/api/auth/logout', { method: 'POST' });
-            window.location.href = '/login';
+            const response = await fetch('/logout', {
+                method: 'POST',
+                credentials: 'include'
+            });
+            
+            if (response.ok) {
+                window.location.href = '/login';
+            } else {
+                console.error('Logout failed');
+                // Force redirect anyway
+                window.location.href = '/login';
+            }
         } catch (error) {
-            console.error('Logout failed:', error);
+            console.error('Logout error:', error);
+            // Force redirect on error
             window.location.href = '/login';
+        }
+    }
+
+    showNotification(message, type = 'info') {
+        // Create notification element
+        const notification = document.createElement('div');
+        notification.className = `notification ${type}`;
+        notification.textContent = message;
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: ${type === 'success' ? '#27ae60' : type === 'error' ? '#e74c3c' : '#3498db'};
+            color: white;
+            padding: 1rem;
+            border-radius: 4px;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        `;
+
+        document.body.appendChild(notification);
+
+        // Remove after 3 seconds
+        setTimeout(() => {
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
+            }
+        }, 3000);
+    }
+
+    formatTimestamp(timestamp) {
+        if (!timestamp) return 'Never';
+        try {
+            return new Date(timestamp).toLocaleString();
+        } catch (error) {
+            return 'Invalid date';
         }
     }
 }
 
-// Global functions
+// Initialize dashboard when page loads
+document.addEventListener('DOMContentLoaded', () => {
+    const dashboard = new RMMDashboard();
+    dashboard.init();
+});
+
+// Global functions for HTML onclick handlers
 async function logout() {
-    if (window.dashboard) {
-        await window.dashboard.logout();
-    }
+    const dashboard = new RMMDashboard();
+    await dashboard.logout();
 }
 
 async function scanForVulnerabilities() {
-    if (window.dashboard) {
-        await window.dashboard.scanForVulnerabilities();
-    }
+    const dashboard = new RMMDashboard();
+    await dashboard.scanForVulnerabilities();
 }
 
 async function refreshVulnerabilities() {
-    if (window.dashboard) {
-        await window.dashboard.refreshVulnerabilities();
-    }
+    const dashboard = new RMMDashboard();
+    await dashboard.refreshVulnerabilities();
 }
-
-// Initialize dashboard
-window.dashboard = new RMMDashboard();
