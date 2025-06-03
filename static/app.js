@@ -10,7 +10,9 @@ class RMMDashboard {
     }
 
     async init() {
-        await this.checkAuthentication();
+        const isAuthenticated = await this.checkAuthentication();
+        if (!isAuthenticated) return;
+        
         this.setupEventListeners();
         this.setupPeriodicUpdates();
         await this.loadAllData();
@@ -22,12 +24,17 @@ class RMMDashboard {
             const result = await response.json();
             if (!result.authenticated) {
                 window.location.href = '/login';
-                return;
+                return false;
             }
-            document.getElementById('username').textContent = result.user.username;
+            const usernameElement = document.getElementById('username');
+            if (usernameElement) {
+                usernameElement.textContent = result.user.username;
+            }
+            return true;
         } catch (error) {
             console.error('Auth check failed:', error);
             window.location.href = '/login';
+            return false;
         }
     }
 
