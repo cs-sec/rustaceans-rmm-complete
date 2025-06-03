@@ -137,13 +137,30 @@ async fn register_agent(
     if let Some(agent_id) = agent_data.get("agent_id").and_then(|v| v.as_str()) {
         let mut agents_guard = agents.lock().unwrap();
         
-        // Create agent record
-        let mut agent_record = agent_data.clone();
-        agent_record["last_seen"] = serde_json::Value::String(Utc::now().to_rfc3339());
-        agent_record["status"] = serde_json::Value::String("online".to_string());
+        // Extract system info from agent data
+        let empty_obj = serde_json::json!({});
+        let system_info = agent_data.get("system_info").unwrap_or(&empty_obj);
+        
+        // Create dashboard-compatible agent record
+        let agent_record = serde_json::json!({
+            "id": agent_id,
+            "hostname": system_info.get("hostname").and_then(|v| v.as_str()).unwrap_or("Unknown Host"),
+            "ip": system_info.get("ip_address").and_then(|v| v.as_str()).unwrap_or("N/A"),
+            "os": system_info.get("os").and_then(|v| v.as_str()).unwrap_or("Unknown"),
+            "os_version": system_info.get("os_version").and_then(|v| v.as_str()).unwrap_or("Unknown"),
+            "last_seen": Utc::now().to_rfc3339(),
+            "agent_version": system_info.get("agent_version").and_then(|v| v.as_str()).unwrap_or("1.0.0"),
+            "status": "online",
+            "online": true,
+            "cpu_usage": system_info.get("cpu_usage").and_then(|v| v.as_f64()).unwrap_or(0.0),
+            "memory_usage": system_info.get("memory_usage").and_then(|v| v.as_f64()).unwrap_or(0.0),
+            "disk_usage": system_info.get("disk_usage").and_then(|v| v.as_f64()).unwrap_or(0.0)
+        });
         
         agents_guard.insert(agent_id.to_string(), agent_record);
-        println!("Agent {} registered and stored", agent_id);
+        println!("Agent {} registered and stored with hostname: {}", 
+                agent_id, 
+                system_info.get("hostname").and_then(|v| v.as_str()).unwrap_or("Unknown"));
     }
     
     Ok(HttpResponse::Ok().json(serde_json::json!({
@@ -161,14 +178,32 @@ async fn agent_heartbeat(
     println!("Heartbeat from agent {}: {}", agent_id, serde_json::to_string_pretty(&heartbeat_data).unwrap_or_default());
     
     // Update agent data with heartbeat
-    if let mut agents_guard = agents.lock().unwrap() {
-        if let Some(agent_record) = agents_guard.get_mut(&agent_id) {
-            agent_record["last_seen"] = serde_json::Value::String(Utc::now().to_rfc3339());
-            agent_record["status"] = serde_json::Value::String("online".to_string());
-            
-            // Update system info if provided
-            if let Some(system_info) = heartbeat_data.get("system_info") {
-                agent_record["system_info"] = system_info.clone();
+    let mut agents_guard = agents.lock().unwrap();
+    if let Some(agent_record) = agents_guard.get_mut(&agent_id) {
+        agent_record["last_seen"] = serde_json::Value::String(Utc::now().to_rfc3339());
+        agent_record["status"] = serde_json::Value::String("online".to_string());
+        agent_record["online"] = serde_json::Value::Bool(true);
+        
+        // Update system info if provided
+        if let Some(system_info) = heartbeat_data.get("system_info") {
+            // Update individual fields for dashboard compatibility
+            if let Some(hostname) = system_info.get("hostname") {
+                agent_record["hostname"] = hostname.clone();
+            }
+            if let Some(ip) = system_info.get("ip_address") {
+                agent_record["ip"] = ip.clone();
+            }
+            if let Some(os) = system_info.get("os") {
+                agent_record["os"] = os.clone();
+            }
+            if let Some(cpu_usage) = system_info.get("cpu_usage") {
+                agent_record["cpu_usage"] = cpu_usage.clone();
+            }
+            if let Some(memory_usage) = system_info.get("memory_usage") {
+                agent_record["memory_usage"] = memory_usage.clone();
+            }
+            if let Some(disk_usage) = system_info.get("disk_usage") {
+                agent_record["disk_usage"] = disk_usage.clone();
             }
         }
     }
