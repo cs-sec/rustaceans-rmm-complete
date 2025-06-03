@@ -19,7 +19,7 @@ A security-first Remote Monitoring and Management (RMM) tool built in Rust, focu
 2. **Configure Security Group** to allow port 5000
 3. **Run setup script**:
 ```bash
-curl -sSL https://raw.githubusercontent.com/cs-sec/rustaceans-rmm/main/deployment/aws-linux-setup.sh | bash
+curl -sSL https://raw.githubusercontent.com/cs-sec/rustaceans-rmm-complete/refs/heads/main/deployment/quick-aws-setup.sh | bash
 ```
 
 ### Windows Agent Deployment
