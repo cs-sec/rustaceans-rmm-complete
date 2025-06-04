@@ -178,15 +178,21 @@ class RMMDashboard {
         container.innerHTML = vulnerabilities.map(vuln => `
             <div class="vuln-item">
                 <div class="vuln-header">
-                    <h4>${vuln.title || vuln.cve_id || 'Unknown Vulnerability'}</h4>
-                    <span class="severity ${vuln.severity?.toLowerCase() || 'medium'}">${vuln.severity || 'Medium'}</span>
+                    <h4>${vuln.title || 'Unknown Vulnerability'}</h4>
+                    <span class="severity ${(vuln.severity || 'medium').toLowerCase()}">${vuln.severity || 'Medium'}</span>
                 </div>
-                <p><strong>CVE ID:</strong> ${vuln.cve_id || 'N/A'}</p>
+                <p><strong>Agent:</strong> ${vuln.agent_id || 'Unknown'}</p>
+                <p><strong>Category:</strong> ${vuln.category || 'General'}</p>
+                <p><strong>Component:</strong> ${vuln.affected_component || 'Unknown'}</p>
                 <p><strong>Description:</strong> ${vuln.description || 'No description available'}</p>
-                <p><strong>Affected System:</strong> ${vuln.hostname || 'Unknown'}</p>
-                <p><strong>Discovered:</strong> ${this.formatTimestamp(vuln.detected_at)}</p>
+                <p><strong>Remediation:</strong> ${vuln.remediation || 'No remediation available'}</p>
+                <p><strong>Confidence:</strong> ${vuln.confidence ? Math.round(vuln.confidence * 100) + '%' : 'N/A'}</p>
+                <p><strong>Detected:</strong> ${this.formatTimestamp(vuln.timestamp)}</p>
+                ${vuln.cve_id ? `<p><strong>CVE ID:</strong> ${vuln.cve_id}</p>` : ''}
             </div>
         `).join('');
+        
+        console.log(`Displayed ${vulnerabilities.length} vulnerabilities`);
     }
 
     displayScanResults(scanResults) {
@@ -220,18 +226,28 @@ class RMMDashboard {
     }
 
     async scanForVulnerabilities() {
+        console.log('Starting vulnerability scan...');
         this.showNotification('Starting vulnerability scan...', 'info');
         try {
-            const response = await fetch('/api/scan/vulnerabilities', {
+            const response = await fetch('/api/vulnerabilities/scan', {
                 method: 'POST',
-                credentials: 'include'
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
             
+            console.log('Scan response status:', response.status);
+            
             if (response.ok) {
+                const result = await response.json();
+                console.log('Scan result:', result);
                 this.showNotification('Vulnerability scan initiated successfully', 'success');
                 // Refresh vulnerabilities after a delay
-                setTimeout(() => this.loadVulnerabilities(), 2000);
+                setTimeout(() => this.loadVulnerabilities(), 3000);
             } else {
+                const errorText = await response.text();
+                console.error('Scan failed:', response.status, errorText);
                 this.showNotification('Failed to start vulnerability scan', 'error');
             }
         } catch (error) {
